@@ -1,0 +1,81 @@
+---
+# TEMPLATE GENERATED VIA COOKIECUTTER. ADAPT ACCORDINGLY
+
+Description: Template for function iam-switchrole-org-policies
+Parameters:
+
+  RemoteRole:
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9-_.]+'
+
+  RemoteRoleExternalId:
+    Type: String
+    NoEcho: True
+
+Resources:
+  TemplatesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      AutoPublishAlias: 'live'
+      CodeUri: iam-switchrole-org-policies.zip
+      Environment:
+        Variables:
+          TEMPLATES_BUCKET: !Ref TemplatesBucket
+          REMOTE_ROLE: !Ref RemoteRole
+          ROLE_EXTERNAL_ID: !Ref RemoteRoleExternalId
+      Handler: function.lambda_handler
+      Layers:
+        - arn:aws:lambda:eu-west-1:373709687836:layer:ozone:9
+      MemorySize: 256
+      Role: !GetAtt 'LambdaFunctionRole.Arn'
+      Runtime: python3.7
+      Timeout: 30
+      FunctionName: !Ref 'AWS::NoValue'
+
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyName: AllowStsAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::*:role/${RemoteRole}'
+        - PolicyName: AllowOrgAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - organizations:describe-organization
+                Effect: Allow
+                Resource:
+                  - '*'
+        - PolicyName: AllowS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Effect: Allow
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${TemplatesBucket}/*'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'lambda.${AWS::URLSuffix}'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
